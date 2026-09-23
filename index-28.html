@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tourism City Map</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+<style>
+body{margin:0;font-family:sans-serif;display:flex;background:#fff}
+#sidebar{width:320px;height:100vh;overflow-y:auto;padding:10px;box-sizing:border-box;background:#fff}
+#sidebar h3{margin-top:0;color:#c0392b;font-size:20px}
+#map{flex:1;height:100vh}
+#search{width:100%;padding:8px;margin-bottom:10px;box-sizing:border-box;border:1px solid #ccc;border-radius:4px;color:#000}
+#search:focus{border-color:#c0392b;outline:none}
+.item{padding:8px;border-bottom:1px solid #f5c6c6;cursor:pointer;color:#000}
+.item:hover{background:#ffe5e5}
+.filter-btn{margin:2px;padding:4px 8px;cursor:pointer;border:1px solid #ccc;border-radius:4px;background:#fff;color:#000}
+.filter-btn.active{background:#c0392b;color:#fff;border-color:#c0392b}
+#infoPerjalanan{display:none;background:#fdecea;border:1px solid #f5c6c6;border-radius:6px;padding:10px;margin-bottom:10px;font-size:14px;color:#000}
+#infoPerjalanan b{display:block;margin-bottom:4px;color:#c0392b}
+#infoPerjalanan .baris{margin:3px 0}
+.media-container img,.media-container iframe{width:100%;border-radius:6px;margin-top:6px}
+.media-container img{max-height:150px;object-fit:cover}
+.media-container iframe{height:150px;border:none}
+.link-container{margin-top:10px;display:flex;gap:5px;flex-wrap:wrap}
+.link-btn{display:inline-block;padding:6px 9px;border-radius:5px;text-decoration:none;color:white!important;font-size:12px;font-weight:bold}
+.google-btn{background:#4285F4}.tiktok-btn{background:#000}.youtube-btn{background:#FF0000}
+@media(max-width:700px){
+  body{display:block}
+  #sidebar{width:100%;height:45vh}
+  #map{height:55vh}
+}
+</style>
+</head>
+<body>
+<div id="sidebar">
+<h3>🗺️ Tourism City Map</h3>
+<input type="text" id="search" placeholder="Cari nama tempat...">
+<div id="filters"></div>
+<div id="infoPerjalanan"></div>
+<div id="list"></div>
+</div>
+<div id="map"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script>
+const map=L.map('map').setView([-7.98,112.63],12);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap'}).addTo(map);
+const warnaRute='red';
+
+const titikAwal={lat:-7.990185,lng:112.627345};
+const markerAwal=L.marker([titikAwal.lat,titikAwal.lng],{
+icon:L.icon({iconUrl:'https://cdn-icons-png.flaticon.com/128/1946/1946488.png',iconSize:[40,40],iconAnchor:[20,40],popupAnchor:[0,-40]})
+}).addTo(map);
+markerAwal.bindPopup('<b>EDO House</b><br>SMKN 4 Malang - Titik Awal').openPopup();
+
+const ikonKategori={
+WisataAlam:L.icon({iconUrl:'https://cdn-icons-png.flaticon.com/128/1830/1830839.png',iconSize:[32,32],iconAnchor:[16,32],popupAnchor:[0,-32]}),
+WisataBudaya:L.icon({iconUrl:'https://cdn-icons-png.flaticon.com/128/2830/2830289.png',iconSize:[32,32],iconAnchor:[16,32],popupAnchor:[0,-32]}),
+WisataSejarah:L.icon({iconUrl:'https://cdn-icons-png.flaticon.com/128/3480/3480559.png',iconSize:[32,32],iconAnchor:[16,32],popupAnchor:[0,-32]}),
+Religi:L.icon({iconUrl:'https://cdn-icons-png.flaticon.com/128/854/854878.png',iconSize:[32,32],iconAnchor:[16,32],popupAnchor:[0,-32]}),
+Kuliner:L.icon({iconUrl:'https://cdn-icons-png.flaticon.com/128/854/854878.png',iconSize:[32,32],iconAnchor:[16,32],popupAnchor:[0,-32]}),
+Perbelanjaan:L.icon({iconUrl:'https://cdn-icons-png.flaticon.com/128/854/854878.png',iconSize:[32,32],iconAnchor:[16,32],popupAnchor:[0,-32]}),
+Pertanian:L.icon({iconUrl:'https://cdn-icons-png.flaticon.com/128/854/854878.png',iconSize:[32,32],iconAnchor:[16,32],popupAnchor:[0,-32]}),
+Petualangan:L.icon({iconUrl:'https://cdn-icons-png.flaticon.com/128/854/854878.png',iconSize:[32,32],iconAnchor:[16,32],popupAnchor:[0,-32]}),
+WisataBuatan:L.icon({iconUrl:'https://cdn-icons-png.flaticon.com/128/854/854878.png',iconSize:[32,32],iconAnchor:[16,32],popupAnchor:[0,-32]})
+};
+
+const lokasi=[
+{nama:"Bukit Premium",kategori:"WisataAlam",lat:-7.836111,lng:112.879722,desc:"Hamparan padang sabana hijau berbukit eksotis di kawasan pegunungan Tengger.",biaya:"Weekday: Rp10.000 per orang & Weekend: Rp10.000 per orang.",foto:"https://i.ibb.co/vpzHp0c/1-1-1024x576.jpg",video:"",tiktok:"",youtube:""},
+{nama:"Padepokan Mangundharmo",kategori:"WisataBudaya",lat:-7.933390,lng:112.754850,desc:"Pusat pelestarian dan pengembangan seni budaya khas Malangan yang terletak di lereng kaki Gunung Semeru.",biaya:"Tidak Dipungut Biaya",foto:"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTtT1t_oHb5nhuAjU-fpGOepFOlbXCOkbGWgAHhRMFlCUOygNVIshL7X2DN&s=10",video:"",tiktok:"",youtube:""},
+{nama:"Museum Panji",kategori:"WisataSejarah",lat:-7.937222,lng:112.721389,desc:"Destinasi wisata edukasi, budaya, dan rekreasi yang memadukan keindahan alam pedesaan dengan pelestarian sejarah.",biaya:"Dewasa: Rp25.000 per orang & Anak-anak: Rp15.000 - Rp20.000 per orang.",foto:"https://d34vm3j4h7f97z.cloudfront.net/optimized/4X/6/d/1/6d18e9e0578298b85ab27ccb058e7669f7b45082_2_666x500.jpeg",video:"",tiktok:"",youtube:""},
+{nama:"Klenteng Kwan Im Tong",kategori:"Religi",lat:-7.872778,lng:112.524167,desc:"Klenteng Kwan Im Tong adalah tempat ibadah umat Tridharma (Buddha, Taoisme, dan Konghucu) di kawasan Kota Batu.",biaya:"Tidak Dipungut Biaya",foto:"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQIvfmfYYvsZ3YX3AgqU8P5wSkzaXqeo1xfRKUWHvAxsDpa43Kuza4q0DuQ&s=10",video:"",tiktok:"",youtube:""},
+{nama:"Rawon Rampal",kategori:"Kuliner",lat:-7.973417,lng:112.639306,desc:"Kuliner legendaris Kota Malang yang terkenal dengan kuah rawon hitam dan potongan daging sapi.",biaya:"Rp25.000 - Rp55.000",foto:"",video:"",tiktok:"",youtube:""},
+{nama:"Pusat Belanja Brawijaya",kategori:"Perbelanjaan",lat:-7.877028,lng:112.532333,desc:"Pusat perbelanjaan oleh-oleh yang populer di kawasan Malang Raya.",biaya:"Rp15.000 - Rp75.000",foto:"",video:"",tiktok:"",youtube:""},
+{nama:"Dusun Kuliner",kategori:"Pertanian",lat:-7.809989,lng:112.527339,desc:"Destinasi wisata keluarga, kuliner, dan edukasi yang memadukan keindahan alam pegunungan dengan konsep pedesaan.",biaya:"Rp20.000",foto:"",video:"",tiktok:"",youtube:""},
+{nama:"Tracking Gunung Semeru",kategori:"Petualangan",lat:-8.042500,lng:112.924167,desc:"Destinasi petualangan dengan pemandangan alam pegunungan yang menarik.",biaya:"Weekday: Rp20.000 & Weekend: Rp24.000",foto:"",video:"",tiktok:"",youtube:""},
+{nama:"Selecta",kategori:"WisataBuatan",lat:-7.828611,lng:112.527778,desc:"Salah satu destinasi wisata keluarga legendaris di Kota Batu yang sudah berdiri sejak masa kolonial Belanda.",biaya:"Weekday: Rp50.000 & Weekend: Rp50.000",foto:"",video:"",tiktok:"",youtube:""}
+];
+
+function buatTombolLink(l){
+const googleMaps='https://www.google.com/maps/dir/?api=1&destination='+l.lat+','+l.lng;
+const tiktok=l.tiktok||'https://www.tiktok.com/search?q='+encodeURIComponent(l.nama);
+const youtube=l.youtube||'https://www.youtube.com/results?search_query='+encodeURIComponent(l.nama);
+return `<div class="link-container">
+<a href="${googleMaps}" target="_blank" class="link-btn google-btn" onclick="event.stopPropagation();">📍 Google Maps</a>
+<a href="${tiktok}" target="_blank" class="link-btn tiktok-btn" onclick="event.stopPropagation();">🎵 TikTok</a>
+<a href="${youtube}" target="_blank" class="link-btn youtube-btn" onclick="event.stopPropagation();">▶️ YouTube</a>
+</div>`;
+}
+
+let markers=[],routeLine=null;
+function tampilkanRute(tujuanLat,tujuanLng,namaTempat,biaya){
+if(routeLine)map.removeLayer(routeLine);
+const infoBox=document.getElementById('infoPerjalanan');
+infoBox.style.display='block';
+infoBox.innerHTML='<b>⏳ Menghitung rute...</b>';
+const url='https://router.project-osrm.org/route/v1/driving/'+titikAwal.lng+','+titikAwal.lat+';'+tujuanLng+','+tujuanLat+'?overview=full&geometries=geojson';
+fetch(url).then(res=>res.json()).then(data=>{
+if(!data.routes||data.routes.length===0){infoBox.innerHTML='<b>⚠️ Rute tidak ditemukan.</b>';return;}
+const rute=data.routes[0];
+const koordinat=rute.geometry.coordinates.map(c=>[c[1],c[0]]);
+routeLine=L.polyline(koordinat,{color:warnaRute,weight:5,opacity:.75}).addTo(map);
+map.fitBounds(routeLine.getBounds(),{padding:[40,40]});
+const jarakKm=(rute.distance/1000).toFixed(1);
+const waktuMobilMenit=Math.round(rute.duration/60);
+const waktuMotorMenit=Math.round(waktuMobilMenit*.8);
+infoBox.innerHTML='<b>📍 Tujuan: '+namaTempat+'</b>'+
+'<div class="baris">📏 Jarak: '+jarakKm+' km</div>'+
+'<div class="baris">🏍️ Estimasi motor: ± '+waktuMotorMenit+' menit</div>'+
+'<div class="baris">🚗 Estimasi mobil: ± '+waktuMobilMenit+' menit</div>'+
+'<div class="baris">💰 Biaya wisata: '+biaya+'</div>'+
+'<div class="baris" style="font-size:11px;color:#888;">*Estimasi waktu tergantung kondisi lalu lintas</div>';
+}).catch(err=>{console.log('Gagal ambil rute:',err);infoBox.innerHTML='<b>⚠️ Gagal memuat rute, coba lagi.</b>';});
+}
+
+function renderPeta(data){
+markers.forEach(m=>map.removeLayer(m));markers=[];
+const list=document.getElementById('list');list.innerHTML='';
+data.forEach(l=>{
+const marker=L.marker([l.lat,l.lng],{icon:ikonKategori[l.kategori]||undefined}).addTo(map);
+let htmlMedia='<div class="media-container">';
+if(l.foto)htmlMedia+='<img src="'+l.foto+'" alt="'+l.nama+'">';
+if(l.video)htmlMedia+='<iframe src="'+l.video+'" allowfullscreen></iframe>';
+htmlMedia+='</div>';
+const tombolLink=buatTombolLink(l);
+const isiPopup='<b>'+l.nama+'</b><br>'+l.desc+'<br><br>💰 '+l.biaya+htmlMedia+tombolLink;
+marker.bindPopup(isiPopup);markers.push(marker);
+marker.on('click',()=>tampilkanRute(l.lat,l.lng,l.nama,l.biaya));
+const div=document.createElement('div');div.className='item';
+div.innerHTML='<b>'+l.nama+'</b><br><small>'+l.desc+' · 💰 '+l.biaya+'</small>'+htmlMedia+buatTombolLink(l);
+div.onclick=()=>{map.flyTo([l.lat,l.lng],15);marker.openPopup();tampilkanRute(l.lat,l.lng,l.nama,l.biaya);};
+list.appendChild(div);
+});
+}
+renderPeta(lokasi);
+
+document.getElementById('search').addEventListener('input',e=>{
+const kata=e.target.value.toLowerCase();
+renderPeta(lokasi.filter(l=>l.nama.toLowerCase().includes(kata)));
+});
+
+const kategoriUnik=[];
+lokasi.forEach(l=>{if(kategoriUnik.indexOf(l.kategori)===-1)kategoriUnik.push(l.kategori);});
+const filterDiv=document.getElementById('filters');
+const btnAll=document.createElement('button');
+btnAll.textContent='Semua';btnAll.className='filter-btn active';
+btnAll.onclick=()=>{
+renderPeta(lokasi);
+document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+btnAll.classList.add('active');
+};
+filterDiv.appendChild(btnAll);
+
+kategoriUnik.forEach(kat=>{
+const btn=document.createElement('button');btn.textContent=kat;btn.className='filter-btn';
+btn.onclick=()=>{
+renderPeta(lokasi.filter(l=>l.kategori===kat));
+document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+btn.classList.add('active');
+};
+filterDiv.appendChild(btn);
+});
+</script>
+</body>
+</html>
