@@ -1,0 +1,1494 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tourism City Map</title>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+
+<style>
+body { margin: 0; font-family: sans-serif; display: flex; background: #ffffff; }
+#sidebar { width: 320px; height: 100vh; overflow-y: auto; padding: 10px; box-sizing: border-box; background: #ffffff; }
+#sidebar h3 { margin-top: 0; color: #c0392b; font-size: 20px; }
+#map { flex: 1; height: 100vh; }
+#search { width: 100%; padding: 8px; margin-bottom: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; color: #000; }
+#search:focus { border-color: #c0392b; outline: none; }
+.item { padding: 8px; border-bottom: 1px solid #f5c6c6; cursor: pointer; color: #000; }
+.item:hover { background: #ffe5e5; }
+.filter-btn { margin: 2px; padding: 4px 8px; cursor: pointer; border: 1px solid #ccc; border-radius: 4px; background: #fff; color: #000; }
+.filter-btn.active { background: #c0392b; color: #fff; border-color: #c0392b; }
+#infoPerjalanan { display: none; background: #fdecea; border: 1px solid #f5c6c6; border-radius: 6px; padding: 10px; margin-bottom: 10px; font-size: 14px; color: #000; }
+#infoPerjalanan b { color: #c0392b; }
+.baris { margin: 4px 0; }
+.grab-box { background: #eaf7ee; border: 1px solid #b7dfc2; border-radius: 6px; padding: 8px; margin-top: 8px; }
+.grab-box b { color: #16833b; }
+.grab-mobil { margin-top: 10px; padding-top: 8px; border-top: 1px solid #b7dfc2; }
+.grab-catatan { font-size: 11px; color: #777; margin-top: 8px; line-height: 1.4; }
+.akses-box { background: #f4f6f7; border: 1px solid #d5d8dc; border-radius: 6px; padding: 8px; margin-top: 8px; }
+.akses-box b { color: #2c3e50; }
+.akses-item { margin: 4px 0; font-size: 13px; line-height: 1.4; }
+.akses-catatan { margin-top: 6px; font-size: 11px; color: #777; line-height: 1.4; }
+.media-container img, .media-container iframe { width: 100%; border-radius: 6px; margin-top: 6px; }
+.media-container img { max-height: 150px; object-fit: cover; }
+.media-container iframe { height: 150px; border: none; }
+.rating { margin: 5px 0; font-size: 15px; }
+.bintang { color: #f1c40f; letter-spacing: 1px; }
+.jam-buka { margin: 5px 0; font-size: 13px; }
+.link-container { margin-top: 10px; display: flex; gap: 5px; flex-wrap: wrap; }
+.link-btn { display: inline-block; padding: 6px 9px; border-radius: 5px; text-decoration: none; color: white !important; font-size: 12px; font-weight: bold; }
+.google-btn { background: #4285F4; }
+.tiktok-btn { background: #000000; }
+.youtube-btn { background: #FF0000; }
+#language { width: 100%; padding: 8px; margin-bottom: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; background: #fff; color: #000; cursor: pointer; }
+.language-label { font-size: 13px; font-weight: bold; margin-bottom: 4px; display: block; }
+</style>
+</head>
+
+<body>
+
+<div id="sidebar">
+<h3 id="judul">🗺️ Tourism City Map</h3>
+
+<label class="language-label" id="labelBahasa">🌐 Bahasa</label>
+
+<select id="language">
+  <option value="id">🇮🇩 Indonesia</option>
+  <option value="en">🇬🇧 English</option>
+  <option value="zh">🇨🇳 中文</option>
+  <option value="de">🇩🇪 Deutsch</option>
+  <option value="jv">🏳️ Jawa</option>
+</select>
+
+<input type="text" id="search" placeholder="Cari nama tempat...">
+
+<div id="filters"></div>
+<div id="infoPerjalanan"></div>
+<div id="list"></div>
+</div>
+
+<div id="map"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+
+<script>
+
+/* ========== PETA ========== */
+
+const map = L.map('map').setView([-7.98, 112.63], 12);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap'
+}).addTo(map);
+
+
+/* ========== TITIK AWAL ========== */
+
+const titikAwal = { lat: -7.990185, lng: 112.627345 };
+
+const markerAwal = L.marker([titikAwal.lat, titikAwal.lng]).addTo(map);
+markerAwal.bindPopup('<b>EDO House</b><br>SMKN 4 Malang - Titik Awal');
+
+
+/* ========== IKON KATEGORI ========== */
+
+function buatIkon(url) {
+  return L.icon({ iconUrl: url, iconSize: [38,38], iconAnchor: [19,38] });
+}
+
+const ikonKategori = {
+  WisataAlam:    buatIkon('https://cdn-icons-png.flaticon.com/512/427/427735.png'),
+  WisataBudaya:  buatIkon('https://cdn-icons-png.flaticon.com/512/3082/3082011.png'),
+  WisataSejarah: buatIkon('https://cdn-icons-png.flaticon.com/512/167/167707.png'),
+  Religi:        buatIkon('https://cdn-icons-png.flaticon.com/512/684/684908.png'),
+  Kuliner:       buatIkon('https://cdn-icons-png.flaticon.com/512/1046/1046784.png'),
+  Perbelanjaan:  buatIkon('https://cdn-icons-png.flaticon.com/512/3144/3144456.png'),
+  Pertanian:     buatIkon('https://cdn-icons-png.flaticon.com/512/628/628324.png'),
+  Petualangan:   buatIkon('https://cdn-icons-png.flaticon.com/512/2917/2917995.png'),
+  WisataBuatan:  buatIkon('https://cdn-icons-png.flaticon.com/512/3082/3082031.png')
+};
+
+
+/* ========== DATA WISATA ========== */
+
+const lokasi = [
+
+{
+nama:"Bukit Premium",
+kategori:"WisataAlam",
+lat:-7.836111,
+lng:112.879722,
+desc:"Hamparan padang sabana hijau berbukit eksotis di kawasan pegunungan Tengger.",
+biaya:"Weekday: Rp10.000 per orang & Weekend: Rp10.000 per orang.",
+jamBuka:"04.00 - 16.00",
+rating:4.7,
+akses:{
+jalan:"Aspal dan jalan pegunungan, beberapa bagian menanjak.",
+motor:"Bisa, tetapi perlu berhati-hati di tanjakan dan tikungan.",
+mobil:"Bisa, tetapi beberapa bagian jalan perlu lebih hati-hati.",
+catatan:"Disarankan berangkat lebih awal karena kawasan pegunungan dan kondisi jalan dapat berubah."
+},
+foto:"https://i.ibb.co/vpzHp0c/1-1-1024x576.jpg",
+video:"",
+tiktok:"https://vt.tiktok.com/ZSqQrxnqp/",
+youtube:""
+},
+
+{
+nama:"Pantai Balekambang",
+kategori:"WisataAlam",
+lat:-8.4027,
+lng:112.5315,
+desc:"Pantai populer di Malang yang memiliki pasir putih, ombak yang indah, dan Pura Luhur Amertha Jati di atas pulau kecil.",
+biaya:"Weekday: Rp20.000 per orang & Weekend: Rp20.000 per orang.",
+jamBuka:"08.00 - 17.00",
+rating:4.4,
+akses:{
+jalan:"Jalan beraspal menuju kawasan pantai, terdapat jalan berkelok.",
+motor:"Bisa sampai area parkir wisata.",
+mobil:"Bisa sampai area parkir wisata.",
+catatan:"Perjalanan cukup jauh dan berkelok menuju pantai. Hati-hati terutama saat hujan."
+},
+foto:"https://asset.kompas.com/crops/fbms7I2I-OMlqvjFGgTXsjqyQxk=/0x0:740x493/1200x900/data/photo/2020/07/26/5f1d20b4b198b.jpg",
+video:"",
+tiktok:"https://vt.tiktok.com/ZSqWRS4qc/",
+youtube:""
+},
+
+{
+nama:"Sumber Sira",
+kategori:"WisataAlam",
+lat:-8.122692,
+lng:112.620050,
+desc:"Mata air alami dengan air yang sangat jernih, dikelilingi pepohonan dan tanaman air.",
+biaya:"Weekday: Rp7.000 per orang & Weekend: Rp10.000 per orang.",
+jamBuka:"07.00 - 17.00",
+rating:4.5,
+akses:{
+jalan:"Jalan menuju lokasi berupa jalan desa dan beberapa bagian cukup sempit.",
+motor:"Bisa dan relatif lebih mudah untuk melewati jalan sempit.",
+mobil:"Bisa, tetapi perlu berhati-hati pada bagian jalan yang sempit.",
+catatan:"Ikuti petunjuk lokal menuju area parkir dan berhati-hati saat kondisi jalan basah."
+},
+foto:"https://nahwatravel.co.id/wp-content/uploads/2024/01/Anjuran-dan-Larangan-10.webp",
+video:"",
+tiktok:"https://vt.tiktok.com/ZSqvmxEeN/",
+youtube:""
+},
+
+{
+nama:"Gunung Bromo",
+kategori:"WisataAlam",
+lat:-7.9425,
+lng:112.9530,
+desc:"Gunung berapi aktif di kawasan Taman Nasional Bromo Tengger Semeru.",
+biaya:"Weekday: Rp54.000 per orang (WNI) & Weekend: Rp79.000 per orang (WNI).",
+jamBuka:"00.00 - 17.00",
+rating:4.7,
+akses:{
+jalan:"Jalan pegunungan dengan tanjakan, turunan, tikungan, dan beberapa bagian berliku.",
+motor:"Bisa pada jalur yang diperbolehkan, tetapi membutuhkan kehati-hatian ekstra.",
+mobil:"Bisa, namun untuk beberapa kawasan wisata biasanya menggunakan kendaraan wisata/jeep sesuai aturan kawasan.",
+catatan:"Perhatikan aturan kawasan, cuaca, kabut, dan kondisi jalan pegunungan."
+},
+foto:"https://awsimages.detik.net.id/community/media/visual/2019/03/08/96d60356-f54f-4b9d-a5af-4cbc8c24f3c7_43.jpeg?w=1200",
+video:"",
+tiktok:"https://vt.tiktok.com/ZSqvm5aqg/",
+youtube:""
+},
+
+{
+nama:"Padepokan Mangundharmo",
+kategori:"WisataBudaya",
+lat:-7.933390,
+lng:112.754850,
+desc:"Pusat pelestarian dan pengembangan seni budaya khas Malangan.",
+biaya:"Tidak Dipungut Biaya",
+jamBuka:"08.00 - 17.00",
+rating:4.7,
+akses:{
+jalan:"Jalan desa dan jalan beraspal menuju lokasi.",
+motor:"Bisa.",
+mobil:"Bisa, tetapi perhatikan lebar jalan saat mendekati lokasi.",
+catatan:"Gunakan navigasi dan perhatikan petunjuk warga sekitar."
+},
+foto:"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTtT1t_oHb5nhuAjU-fpGOepFOlbXCOkbGWgAHhRMFlCUOygNVIshL7X2DN&s=10",
+video:"",
+tiktok:"https://vt.tiktok.com/ZSqQSKotu/",
+youtube:""
+},
+
+{
+nama:"Kampung Budaya Polowijen",
+kategori:"WisataBudaya",
+lat:-7.9290431006708,
+lng:112.64343884255,
+desc:"Kampung wisata budaya yang melestarikan Topeng Malangan, tari tradisional, batik, kerajinan, serta situs budaya Polowijen.",
+biaya:"Kunjungan Mandiri / Tiket Reguler: Rp15.000 per orang | Paket Wisata Edukasi: Rp35.000 sampai Rp50.000 per orang",
+jamBuka:"10.00 - 17.00 WIB pada hari biasa dan 09.00 - 21.00 WIB pada hari Sabtu.",
+rating:4.5,
+akses:{
+jalan:"Jalan perkotaan dan jalan kampung menuju lokasi.",
+motor:"Bisa dan cukup mudah.",
+mobil:"Bisa, tetapi beberapa jalan kampung dapat lebih sempit.",
+catatan:"Perhatikan kendaraan warga dan area parkir di sekitar kampung."
+},
+foto:"https://blue.kumparan.com/image/upload/fl_progressive,fl_lossy,c_fill,f_auto,q_auto:best,w_640/v1634025439/01jbqwg19nc1zpm0wdew9kvent.jpg",
+video:"",
+tiktok:"https://vt.tiktok.com/ZSqvuutxp/",
+youtube:""
+},
+
+{
+nama:"Taman Kridha Budaya",
+kategori:"WisataBudaya",
+lat:-7.9476,
+lng:112.6168,
+desc:"Pusat kebudayaan di Malang yang digunakan untuk pertunjukan tari, wayang, pameran, dan kegiatan seni budaya.",
+biaya:"Umumnya Tidak Dipungut Biaya",
+jamBuka:"Senin-Jumat 07.30 - 16.00, Sabtu-Minggu umumnya libur",
+rating:4.5,
+akses:{
+jalan:"Jalan perkotaan beraspal dan mudah dijangkau.",
+motor:"Bisa.",
+mobil:"Bisa.",
+catatan:"Akses berada di kawasan perkotaan sehingga perlu memperhatikan lalu lintas."
+},
+foto:"https://cdn.lentera.co/c/newscenter/lenteratoday/2024/04/e9edb47d-18b6-4447-a807-e74424c4d5c8.jpg",
+video:"",
+tiktok:"https://vt.tiktok.com/ZSqvH4Xq8/",
+youtube:""
+},
+
+{
+nama:"Museum Ganesya",
+kategori:"WisataBudaya",
+lat:-7.9231,
+lng:112.6571,
+desc:"Museum yang menampilkan berbagai koleksi sejarah dan budaya Indonesia.",
+biaya:"Weekday: Rp30.000 per orang & Weekend: Rp30.000 per orang.",
+jamBuka:"09.00 - 22.00",
+rating:4.7,
+akses:{
+jalan:"Jalan perkotaan beraspal dan relatif mudah.",
+motor:"Bisa.",
+mobil:"Bisa.",
+catatan:"Akses menuju kawasan cukup mudah dan berada di area perkotaan."
+},
+foto:"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSiTXMM5fOJ_veUvsHGcoB_bXRRE8nq-2GYbN2xyDCwjw&s",
+video:"",
+tiktok:"https://vt.tiktok.com/ZSqvx5wXx/",
+youtube:""
+},
+
+{
+nama:"Museum Panji",
+kategori:"WisataSejarah",
+lat:-7.937222,
+lng:112.721389,
+desc:"Destinasi wisata edukasi, budaya, dan rekreasi yang memadukan keindahan alam pedesaan dengan pelestarian sejarah.",
+biaya:"Dewasa: Rp25.000 per orang & Anak-anak: Rp15.000 - Rp20.000 per orang.",
+jamBuka:"09.00 - 17.00",
+rating:4.5,
+akses:{
+jalan:"Jalan beraspal menuju kawasan pedesaan.",
+motor:"Bisa.",
+mobil:"Bisa.",
+catatan:"Beberapa bagian jalan menuju lokasi dapat lebih kecil dibanding jalan utama."
+},
+foto:"https://www.indonesia.travel/contentassets/91579bcb86d548dd9f5d15eb96ab7904/museum-panji.jpg",
+video:"",
+tiktok:"https://vt.tiktok.com/ZSqQAMUXF/",
+youtube:""
+},
+
+{
+nama:"Candi Singosari",
+kategori:"WisataSejarah",
+lat:-7.887800,
+lng:112.663900,
+desc:"Candi Hindu-Buddha peninggalan Kerajaan Singhasari.",
+biaya:"Weekday: Sekitar Rp5.000 per orang & Weekend: Sekitar Rp5.000 per orang.",
+jamBuka:"07.30 - 16.00",
+rating:4.6,
+akses:{
+jalan:"Jalan utama beraspal dan jalan perkotaan.",
+motor:"Bisa.",
+mobil:"Bisa.",
+catatan:"Akses menuju kawasan candi relatif mudah."
+},
+foto:"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRj9aEXNhC_GLEJuRlKmGkAZ3I4XKzhZmps7nVF7Uccl5F8FEqtAEgJ_QtH&s=10",
+video:"",
+tiktok:"https://vt.tiktok.com/ZSqvQy8BC/",
+youtube:""
+},
+
+{
+nama:"Museum Brawijaya",
+kategori:"WisataSejarah",
+lat:-7.9721,
+lng:112.6212,
+desc:"Museum sejarah yang menyimpan berbagai koleksi peninggalan perjuangan dan sejarah militer di Jawa Timur.",
+biaya:"Weekday: Rp10.000 per orang & Weekend: Rp10.000 per orang.",
+jamBuka:"Weekend: 08.30 - 13.00 & Weekday: 08.00 - 15.00",
+rating:4.5,
+akses:{
+jalan:"Jalan perkotaan beraspal.",
+motor:"Bisa.",
+mobil:"Bisa.",
+catatan:"Berada di kawasan kota sehingga dapat ramai pada jam tertentu."
+},
+foto:"https://upload.wikimedia.org/wikipedia/commons/b/bd/Museum_Brawijaya_1.jpg",
+video:"",
+tiktok:"https://vt.tiktok.com/ZSqvCjmdq/",
+youtube:""
+},
+
+{
+nama:"Candi Jago",
+kategori:"WisataSejarah",
+lat:-8.0058,
+lng:112.7641,
+desc:"Candi peninggalan Kerajaan Singhasari abad ke-13.",
+biaya:"Weekday: Rp10.000 per orang & Weekend: Rp15.000 per orang.",
+jamBuka:"07.30 - 16.00",
+rating:4.6,
+akses:{
+jalan:"Jalan beraspal menuju kawasan Tumpang.",
+motor:"Bisa.",
+mobil:"Bisa.",
+catatan:"Perhatikan jalan desa ketika mendekati area candi."
+},
+foto:"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQUrgLPQIXjX5flNyho6Q1Pegk5_U-LYE9tvv8ouMcaYhJ54oVxWIKN42PW&s=10",
+video:"",
+tiktok:"https://vt.tiktok.com/ZSqv44yTr/",
+youtube:""
+},
+
+{
+nama:"Klenteng Kwan Im Tong",
+kategori:"Religi",
+lat:-7.872778,
+lng:112.524167,
+desc:"Klenteng Kwan Im Tong adalah tempat ibadah umat Tridharma di kawasan Kota Batu.",
+biaya:"Tidak Dipungut Biaya",
+jamBuka:"06.00 - 18.00",
+rating:4.7,
+akses:{
+jalan:"Jalan kota beraspal menuju kawasan Batu.",
+motor:"Bisa.",
+mobil:"Bisa.",
+catatan:"Perhatikan lalu lintas kawasan wisata Batu."
+},
+foto:"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQIvfmfYYvsZ3YX3AgqU8P5wSkzaXqeo1xfRKUWHvAxsDpa43Kuza4q0DuQ&s=10",
+video:"",
+tiktok:"https://vt.tiktok.com/ZSqQDRNhh/",
+youtube:""
+},
+
+{
+nama:"Masjid Agung Jami",
+kategori:"Religi",
+lat:-7.9824,
+lng:112.6297,
+desc:"Masjid bersejarah di pusat Kota Malang, tepat di sebelah barat Alun-Alun Malang.",
+biaya:"Tidak Dipungut Biaya",
+jamBuka:"04.00 - 22.00",
+rating:4.7,
+akses:{
+jalan:"Jalan perkotaan beraspal dan berada di pusat kota.",
+motor:"Bisa.",
+mobil:"Bisa, tetapi lalu lintas dan parkir dapat padat.",
+catatan:"Gunakan area parkir yang tersedia dan perhatikan kondisi lalu lintas pusat kota."
+},
+foto:"https://zjglidcehtsqqqhbdxyp.supabase.co/storage/v1/object/public/atourin/images/destination/malang/masjid-agung-jami-kota-malang-profile1653768675.jpeg",
+video:"",
+tiktok:"https://vt.tiktok.com/ZSqvqrbxT/",
+youtube:""
+},
+
+{
+nama:"Gereja Katolik Hati Kudus Yesus",
+kategori:"Religi",
+lat:-7.9806,
+lng:112.6308,
+desc:"Gereja bersejarah di kawasan Kayutangan dengan arsitektur Neo-Gotik.",
+biaya:"Tidak Dipungut Biaya",
+jamBuka:"Senin-Jumat 04.00 - 20.00 & Sabtu-Minggu 08.30 - 12.00, buka kembali 17.00 - 18.30",
+rating:4.7,
+akses:{
+jalan:"Jalan perkotaan beraspal di kawasan pusat kota.",
+motor:"Bisa.",
+mobil:"Bisa, tetapi parkir dapat terbatas saat ramai.",
+catatan:"Perhatikan kegiatan ibadah dan lalu lintas kawasan Kayutangan."
+},
+foto:"https://ketik-assets.s3-id-jkt-1.kilatstorage.id/upload/20260114113434img-17610.webp",
+video:"",
+tiktok:"https://vt.tiktok.com/ZSqvbspoJ/",
+youtube:""
+},
+
+{
+nama:"Masjid Tiban Turen",
+kategori:"Religi",
+lat:-8.1696,
+lng:112.6885,
+desc:"Masjid megah dengan arsitektur unik perpaduan gaya Timur Tengah, India, dan Tionghoa.",
+biaya:"Tidak Dipungut Biaya",
+jamBuka:"24 jam setiap hari",
+rating:4.7,
+akses:{
+jalan:"Jalan utama dan jalan perkotaan/desa menuju Turen.",
+motor:"Bisa.",
+mobil:"Bisa.",
+catatan:"Jarak cukup jauh dari pusat Kota Malang; perhatikan lalu lintas dan kondisi jalan."
+},
+foto:"https://osccdn.medcom.id/images/content/2020/04/25/d7886b37b13b37af6ad4b198114c23cb.jpg",
+video:"",
+tiktok:"https://vt.tiktok.com/ZSqvp8boU/",
+youtube:""
+},
+
+{
+nama:"Rawon Rampal",
+kategori:"Kuliner",
+lat:-7.973417,
+lng:112.639306,
+desc:"Kuliner legendaris Kota Malang yang terkenal dengan kuah rawon hitam.",
+biaya:"Rp25.000 - Rp55.000",
+jamBuka:"07.00 - 15.00",
+rating:4.5,
+akses:{
+jalan:"Jalan perkotaan beraspal.",
+motor:"Bisa.",
+mobil:"Bisa, tetapi perlu memperhatikan parkir.",
+catatan:"Kawasan kuliner dapat ramai pada jam makan."
+},
+foto:"https://media.indozone.id/crop/images/2025/07/03/hbyySwEB63QdgBQYrwufzLnktXNBZHubIARdbr0B.jpg",
+video:"",
+tiktok:"https://vt.tiktok.com/ZSqQydBYH/",
+youtube:""
+},
+
+{
+nama:"Pecel Kawi Hj. Musilah",
+kategori:"Kuliner",
+lat:-7.9769,
+lng:112.6265,
+desc:"Kuliner legendaris Malang yang menyajikan nasi pecel khas dengan berbagai pilihan lauk.",
+biaya:"Rp15.000 - Rp19.000 per porsi",
+jamBuka:"06.00 - 17.30",
+rating:4.3,
+akses:{
+jalan:"Jalan kota beraspal dan mudah dijangkau.",
+motor:"Bisa.",
+mobil:"Bisa, tetapi parkir dapat terbatas.",
+catatan:"Sebaiknya memperhatikan kondisi lalu lintas saat jam makan."
+},
+foto:"https://nahwatravel.co.id/wp-content/uploads/2026/02/pecel-kawi-malang-hj-musilah-asli-1975-1.webp",
+video:"",
+tiktok:"https://vt.tiktok.com/ZSqc5841G/",
+youtube:""
+},
+
+{
+nama:"Bakso President",
+kategori:"Kuliner",
+lat:-7.9623,
+lng:112.6369,
+desc:"Bakso legendaris Malang yang terkenal dengan lokasinya di samping rel kereta api.",
+biaya:"Rp22.000 - Rp60.000",
+jamBuka:"08.00 - 21.30",
+rating:4.1,
+akses:{
+jalan:"Jalan perkotaan beraspal.",
+motor:"Bisa.",
+mobil:"Bisa, tetapi area parkir perlu diperhatikan.",
+catatan:"Kawasan sekitar dapat ramai terutama saat jam makan."
+},
+foto:"https://asset.kompas.com/crops/0AiPpn10d3NmOW-234ZtBEapAQM=/61x0:902x561/1200x800/data/photo/2020/03/03/5e5e292d8b1dc.jpg",
+video:"",
+tiktok:"https://vt.tiktok.com/ZSqc5X2Rm/",
+youtube:""
+},
+
+{
+nama:"Pos Ketan Legenda 1967",
+kategori:"Kuliner",
+lat:-7.9419933,
+lng:112.6215775,
+desc:"Kuliner khas berbahan ketan dengan berbagai pilihan topping.",
+biaya:"Rp10.000 - Rp19.000 per porsi",
+jamBuka:"15.00 - 00.00",
+rating:4.6,
+akses:{
+jalan:"Jalan kota menuju pusat Kota Batu.",
+motor:"Bisa.",
+mobil:"Bisa, tetapi kawasan dapat ramai.",
+catatan:"Perhatikan lalu lintas dan ketersediaan parkir."
+},
+foto:"https://senyumworldhotel.com/wp-content/uploads/2024/09/legendaris-di-batu-gurih-pulen-pos-ketan-legenda-sudah-ada-sejak-1967-9-6-1024x710.jpeg",
+video:"",
+tiktok:"https://vt.tiktok.com/ZSqcaEKUW/",
+youtube:""
+},
+
+{
+nama:"Pusat Belanja Brawijaya",
+kategori:"Perbelanjaan",
+lat:-7.877028,
+lng:112.532333,
+desc:"Pusat perbelanjaan oleh-oleh yang populer di kawasan Malang Raya.",
+biaya:"Rp15.000 - Rp75.000",
+jamBuka:"08.00 - 21.00",
+rating:4.4,
+akses:{
+jalan:"Jalan utama beraspal.",
+motor:"Bisa.",
+mobil:"Bisa.",
+catatan:"Perhatikan kepadatan kendaraan di sekitar pusat perbelanjaan."
+},
+foto:"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQHZocyr2k1zl0JndJo7qVmv1bcT3JxMdoGOTqS3ooEMsKe-bg4BlHNG_8&s=10",
+video:"",
+tiktok:"https://vt.tiktok.com/ZSqQy5aQc/",
+youtube:""
+},
+
+{
+nama:"Malang Strudel",
+kategori:"Perbelanjaan",
+lat:-7.9749,
+lng:112.6226,
+desc:"Toko oleh-oleh khas Malang yang terkenal dengan berbagai varian strudel.",
+biaya:"Rp18.000 - Rp144.000 tergantung produk",
+jamBuka:"08.00 - 20.00",
+rating:4.4,
+akses:{
+jalan:"Jalan perkotaan beraspal.",
+motor:"Bisa.",
+mobil:"Bisa.",
+catatan:"Akses relatif mudah karena berada di kawasan kota."
+},
+foto:"https://malangstrudel.com/wp-content/uploads/2018/06/MS-BARU-IJO.jpg",
+video:"",
+tiktok:"https://vt.tiktok.com/ZSqcQDMk9/",
+youtube:""
+},
+
+{
+nama:"Kampung Sanan",
+kategori:"Perbelanjaan",
+lat:-7.9606386109279,
+lng:112.64352128448,
+desc:"Sentra oleh-oleh khas Malang yang terkenal sebagai pusat produksi tempe dan keripik tempe.",
+biaya:"Rp5.000 - Rp15.000 tergantung produk",
+jamBuka:"08.00 - 16.00",
+rating:4.5,
+akses:{
+jalan:"Jalan kota dan jalan kampung.",
+motor:"Bisa dan lebih mudah untuk jalan yang sempit.",
+mobil:"Bisa, tetapi beberapa jalan kampung dapat sempit.",
+catatan:"Perhatikan kendaraan warga dan area parkir."
+},
+foto:"https://assets-a1.kompasiana.com/items/album/2026/07/20/whatsapp-image-2026-07-20-at-12-02-45-6a5dad0734777c65dc26a374.jpeg",
+video:"",
+tiktok:"https://vt.tiktok.com/ZSqcCDu2M/",
+youtube:""
+},
+
+{
+nama:"Pia Cap Mangkok",
+kategori:"Perbelanjaan",
+lat:-7.9791,
+lng:112.6245,
+desc:"Toko oleh-oleh khas Malang yang terkenal dengan Pia Cap Mangkok.",
+biaya:"Rp13.000 - Rp168.000 tergantung produk",
+jamBuka:"08.00 - 20.00",
+rating:4.6,
+akses:{
+jalan:"Jalan perkotaan beraspal.",
+motor:"Bisa.",
+mobil:"Bisa, tetapi parkir perlu diperhatikan.",
+catatan:"Kawasan kota dapat ramai pada jam tertentu."
+},
+foto:"https://dynamic-media-cdn.tripadvisor.com/media/photo-o/29/bc/30/ea/pia-cap-mangkok-kota.jpg",
+video:"",
+tiktok:"https://vt.tiktok.com/ZSqcCDu2M/",
+youtube:""
+},
+
+{
+nama:"Dusun Kuliner",
+kategori:"Pertanian",
+lat:-7.809989,
+lng:112.527339,
+desc:"Destinasi wisata keluarga, kuliner, dan edukasi yang memadukan keindahan alam pegunungan dengan konsep pedesaan.",
+biaya:"Rp20.000",
+jamBuka:"08.00 - 17.00",
+rating:4.4,
+akses:{
+jalan:"Jalan menuju kawasan pedesaan dan pegunungan.",
+motor:"Bisa, tetapi perlu hati-hati pada jalan menanjak.",
+mobil:"Bisa.",
+catatan:"Beberapa bagian jalan dapat berkelok dan menanjak."
+},
+foto:"https://inimalangraya.com/wp-content/uploads/2024/10/wisata-dusun-kuliner.jpg",
+video:"",
+tiktok:"https://vt.tiktok.com/ZSqQyCBJN/",
+youtube:""
+},
+
+{
+nama:"Kebun Teh Wonosari",
+kategori:"Pertanian",
+lat:-7.820373,
+lng:112.643483,
+desc:"Agrowisata di lereng Gunung Arjuno dengan hamparan kebun teh yang luas dan udara sejuk.",
+biaya:"Weekday: Sekitar Rp15.000 per orang & Weekend: Sekitar Rp20.000 per orang",
+jamBuka:"06.00 - 17.00",
+rating:4.4,
+akses:{
+jalan:"Jalan pegunungan menuju perkebunan, terdapat tanjakan dan tikungan.",
+motor:"Bisa, tetapi perlu berhati-hati.",
+mobil:"Bisa.",
+catatan:"Kabut dan hujan dapat mengurangi jarak pandang serta membuat jalan licin."
+},
+foto:"https://pict.sindonews.com/dyn/850/pena/news/2020/09/04/704/153986/kebun-teh-wonosari-jadi-the-most-valuable-seller-di-ajang-kemenparekraf-fec.png",
+video:"",
+tiktok:"https://vt.tiktok.com/ZSqcVP9uJ/",
+youtube:""
+},
+
+{
+nama:"Petik Jeruk Selorejo",
+kategori:"Pertanian",
+lat:-7.9348,
+lng:112.5447,
+desc:"Agrowisata kebun jeruk di lereng pegunungan Selorejo.",
+biaya:"Weekday: Sekitar Rp20.000 per orang & Weekend: Sekitar Rp20.000 per orang",
+jamBuka:"08.00 - 16.00",
+rating:4.4,
+akses:{
+jalan:"Jalan desa menuju area perkebunan.",
+motor:"Bisa.",
+mobil:"Bisa, tetapi beberapa jalan menuju kebun lebih sempit.",
+catatan:"Ikuti petunjuk menuju area parkir dan gunakan jalur yang tersedia."
+},
+foto:"https://assets.promediateknologi.id/crop/0x0:0x0/1200x0/webp/photo/p3/193/2025/02/26/kebun-jeruk-3381215848.jpg",
+video:"",
+tiktok:"https://vt.tiktok.com/ZSqcqGfdB/",
+youtube:""
+},
+
+{
+nama:"Lumbung Strawberry",
+kategori:"Pertanian",
+lat:-7.868617,
+lng:112.542100,
+desc:"Wisata petik stroberi di Desa Pandanrejo, Batu.",
+biaya:"Weekday: Sekitar Rp25.000 per orang & Weekend: Sekitar Rp25.000 per orang",
+jamBuka:"08.00 - 16.00",
+rating:4.4,
+akses:{
+jalan:"Jalan kota/desa menuju kawasan perkebunan.",
+motor:"Bisa.",
+mobil:"Bisa.",
+catatan:"Beberapa bagian jalan dapat sempit ketika memasuki kawasan perkebunan."
+},
+foto:"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTy-K0pNtdNj4rwKWgerniQMcWfM-wbr1yCdWZoBq0ZSGDqno0LCgK2v2E&s=10",
+video:"",
+tiktok:"https://vt.tiktok.com/ZSqcbT7fV/",
+youtube:""
+},
+
+{
+nama:"Tracking Gunung Semeru",
+kategori:"Petualangan",
+lat:-8.042500,
+lng:112.924167,
+desc:"Destinasi petualangan dengan pemandangan alam pegunungan.",
+biaya:"Weekday: Rp20.000 & Weekend: Rp24.000",
+jamBuka:"06.00 - 16.00",
+rating:4.8,
+akses:{
+jalan:"Akses menuju kawasan berupa jalan pegunungan dan jalur menuju area pendakian.",
+motor:"Bisa sampai area yang diperbolehkan; jalur trekking dilanjutkan dengan berjalan kaki.",
+mobil:"Bisa sampai area parkir/kawasan akses kendaraan yang diperbolehkan.",
+catatan:"Kondisi jalan pegunungan dapat berubah karena cuaca. Ikuti aturan kawasan dan jalur resmi."
+},
+foto:"https://mytrip.co.id/editor/images/Ranu%20Kumbolo%20dilihat%20dari%20Tanjakan%20Cinta.jpg",
+video:"",
+tiktok:"",
+youtube:""
+},
+
+{
+nama:"Coban Rondo",
+kategori:"Petualangan",
+lat:-7.884961,
+lng:112.4773,
+desc:"Air terjun setinggi sekitar 84 meter dengan suasana alam yang sejuk dan asri.",
+biaya:"Weekday: Rp35.000 per orang & Weekend: Rp40.000 per orang",
+jamBuka:"07.00 - 17.00",
+rating:4.4,
+akses:{
+jalan:"Jalan pegunungan beraspal dengan beberapa tanjakan dan tikungan.",
+motor:"Bisa.",
+mobil:"Bisa.",
+catatan:"Hati-hati ketika jalan basah dan berkabut. Dari area parkir dapat dilanjutkan dengan berjalan kaki."
+},
+foto:"https://nativeindonesia.com/foto/2021/08/Coban-Rondo-Malang.jpg",
+video:"",
+tiktok:"https://vt.tiktok.com/ZSq3rXGYv/",
+youtube:""
+},
+
+{
+nama:"Batu Rafting",
+kategori:"Petualangan",
+lat:-7.874167,
+lng:112.530833,
+desc:"Wisata arung jeram di Dusun Klerek, Desa Torongrejo, Kota Batu.",
+biaya:"Weekday: Rp180.000 - Rp190.000 per orang & Weekend: Rp200.000 per orang",
+jamBuka:"07.00 - 16.00",
+rating:4.4,
+akses:{
+jalan:"Jalan menuju kawasan rafting melalui jalan kota/desa.",
+motor:"Bisa.",
+mobil:"Bisa.",
+catatan:"Ikuti petunjuk menuju basecamp dan area parkir operator rafting."
+},
+foto:"https://zjglidcehtsqqqhbdxyp.supabase.co/storage/v1/object/public/atourin/images/destination/batu/kaliwatu-rafting-profile1654448160.jpeg",
+video:"",
+tiktok:"https://vt.tiktok.com/ZSq3Mo7qk/",
+youtube:""
+},
+
+{
+nama:"Paralayang Gunung Banyak",
+kategori:"Petualangan",
+lat:-7.855314,
+lng:112.496460,
+desc:"Wisata di kawasan Gunung Banyak yang menawarkan panorama Kota Batu dari ketinggian.",
+biaya:"Weekday: Rp20.000 per orang & Weekend: Rp20.000 per orang",
+jamBuka:"Weekday: 08.00 - 17.00, Weekend: 07.30 - 17.00 & Jumat: 13.00 - 17.00",
+rating:4.2,
+akses:{
+jalan:"Jalan pegunungan dengan tanjakan dan tikungan.",
+motor:"Bisa, tetapi perlu berhati-hati.",
+mobil:"Bisa, tetapi perlu memperhatikan tanjakan dan tikungan.",
+catatan:"Hujan dan kabut dapat memengaruhi kondisi jalan."
+},
+foto:"https://shakrankreasi.com/wp-content/uploads/2026/05/paralayang-batu.webp",
+video:"",
+tiktok:"https://vt.tiktok.com/ZSq3rtuDM/",
+youtube:""
+},
+
+{
+nama:"Selecta",
+kategori:"WisataBuatan",
+lat:-7.828611,
+lng:112.527778,
+desc:"Salah satu destinasi wisata keluarga legendaris di Kota Batu.",
+biaya:"Weekday: Rp50.000 & Weekend: Rp50.000",
+jamBuka:"06.00 - 17.00",
+rating:4.6,
+akses:{
+jalan:"Jalan utama menuju kawasan Batu dengan tanjakan dan tikungan.",
+motor:"Bisa.",
+mobil:"Bisa.",
+catatan:"Kawasan wisata dapat ramai terutama saat akhir pekan."
+},
+foto:"https://zjglidcehtsqqqhbdxyp.supabase.co/storage/v1/object/public/atourin/images/destination/batu/taman-rekreasi-selecta-profile1654445122.jpeg",
+video:"",
+tiktok:"https://vt.tiktok.com/ZSqQfRbFF/",
+youtube:""
+},
+
+{
+nama:"Malang Night Paradise",
+kategori:"WisataBuatan",
+lat:-7.923675,
+lng:112.657878,
+desc:"Wisata malam dengan taman lampion, instalasi LED, replika dinosaurus, dan wahana Magic Journey.",
+biaya:"Weekday: Rp85.000/orang & Weekend: Rp92.000/orang",
+jamBuka:"17.45 - 23.00",
+rating:4.6,
+akses:{
+jalan:"Jalan utama perkotaan beraspal.",
+motor:"Bisa.",
+mobil:"Bisa.",
+catatan:"Area sekitar dapat ramai pada sore hingga malam hari."
+},
+foto:"https://blog.agendakota.id/wp-content/uploads/2025/07/upscalemedia-transformed-2.jpeg",
+video:"",
+tiktok:"https://vt.tiktok.com/ZSqoT5rtf/",
+youtube:""
+},
+
+{
+nama:"Hawai Waterpark Malang",
+kategori:"WisataBuatan",
+lat:-7.925,
+lng:112.636,
+desc:"Taman rekreasi air dengan berbagai wahana.",
+biaya:"Weekday: Rp85.000/orang & Weekend: Rp110.000/orang",
+jamBuka:"09.00 - 17.00",
+rating:4.8,
+akses:{
+jalan:"Jalan perkotaan dan jalan utama beraspal.",
+motor:"Bisa.",
+mobil:"Bisa.",
+catatan:"Akses relatif mudah, tetapi lalu lintas dapat meningkat pada akhir pekan."
+},
+foto:"https://home.hawaigroup.id/wp-content/uploads/2022/12/Hawai-Waterpark-Mega-Water-Bounce.jpg",
+video:"",
+tiktok:"https://vt.tiktok.com/ZSqowQy9R/",
+youtube:""
+},
+
+{
+nama:"Jatim Park 2",
+kategori:"WisataBuatan",
+lat:-7.888782149555,
+lng:112.52963369325,
+desc:"Taman wisata edukasi yang menggabungkan Batu Secret Zoo dan Museum Satwa.",
+biaya:"Weekday: sekitar Rp150.000/orang & Weekend: sekitar Rp150.000/orang",
+jamBuka:"08.30 - 16.30",
+rating:4.8,
+akses:{
+jalan:"Jalan utama menuju kawasan wisata Kota Batu dengan beberapa tanjakan.",
+motor:"Bisa.",
+mobil:"Bisa.",
+catatan:"Kawasan wisata cukup ramai saat akhir pekan; perhatikan lalu lintas dan parkir."
+},
+foto:"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ3McZAO4PiQF_c_AsyHXJ8CC-t9dhLSBvlYYjgDGuFxZ6fHSJfUy2RYeI&s=10",
+video:"",
+tiktok:"https://vt.tiktok.com/ZSqQK3kLe/",
+youtube:""
+}
+
+];
+
+
+/* ========== TERJEMAHAN 5 BAHASA ========== */
+
+const bahasa = {
+
+id: {
+judul:"🗺️ Tourism City Map",
+labelBahasa:"🌐 Bahasa",
+search:"Cari nama tempat...",
+semua:"Semua",
+tujuan:"📍 Tujuan",
+menghitung:"⏳ Menghitung rute...",
+ruteTidak:"⚠️ Rute tidak ditemukan.",
+gagal:"⚠️ Gagal memuat rute.",
+cobaLagi:"Silakan coba lagi atau gunakan tombol Google Maps.",
+jarak:"📏 Jarak jalan:",
+motorPribadi:"🏍️ Motor pribadi:",
+mobilPribadi:"🚗 Mobil pribadi:",
+estimasiGrab:"🟢 ESTIMASI GRAB",
+grabMotor:"🏍️ Grab Motor (GrabBike)",
+grabMobil:"🚗 Grab Mobil (GrabCar)",
+harga:"💰 Estimasi harga:",
+waktu:"⏱️ Waktu:",
+jarakLabel:"📏 Jarak:",
+akses:"🚦 Aksesibilitas Jalan",
+kondisi:"🛣️ Kondisi jalan:",
+motor:"🏍️ Motor:",
+mobil:"🚗 Mobil:",
+catatan:"⚠️ Catatan:",
+biaya:"💰 Biaya wisata:",
+jam:"🕐 Jam Buka:",
+grabCatatan:"*Harga Grab hanya estimasi berdasarkan jarak. Harga sebenarnya di aplikasi Grab dapat berbeda karena waktu, lokasi, permintaan, promo, tarif dinamis, dan biaya tambahan.",
+aksesCatatan:"*Kondisi jalan dapat berubah karena cuaca, perbaikan jalan, kepadatan lalu lintas, atau kondisi lapangan.",
+ruteCatatan:"*Jarak mengikuti rute jalan dari OSRM. Waktu dapat berubah karena lalu lintas, cuaca, dan kondisi jalan."
+},
+
+en: {
+judul:"🗺️ Tourism City Map",
+labelBahasa:"🌐 Language",
+search:"Search place name...",
+semua:"All",
+tujuan:"📍 Destination",
+menghitung:"⏳ Calculating route...",
+ruteTidak:"⚠️ Route not found.",
+gagal:"⚠️ Failed to load route.",
+cobaLagi:"Please try again or use the Google Maps button.",
+jarak:"📏 Road distance:",
+motorPribadi:"🏍️ Private motorcycle:",
+mobilPribadi:"🚗 Private car:",
+estimasiGrab:"🟢 GRAB ESTIMATE",
+grabMotor:"🏍️ Grab Motor (GrabBike)",
+grabMobil:"🚗 Grab Car (GrabCar)",
+harga:"💰 Estimated price:",
+waktu:"⏱️ Time:",
+jarakLabel:"📏 Distance:",
+akses:"🚦 Road Accessibility",
+kondisi:"🛣️ Road condition:",
+motor:"🏍️ Motorcycle:",
+mobil:"🚗 Car:",
+catatan:"⚠️ Note:",
+biaya:"💰 Entrance/tour cost:",
+jam:"🕐 Opening Hours:",
+grabCatatan:"*Grab prices are estimates based on distance. Actual prices in the Grab app may vary due to time, location, demand, promotions, dynamic pricing, and additional fees.",
+aksesCatatan:"*Road conditions may change due to weather, road repairs, traffic, or local conditions.",
+ruteCatatan:"*Distance follows the OSRM road route. Travel time may change due to traffic, weather, and road conditions."
+},
+
+zh: {
+judul:"🗺️ 旅游城市地图",
+labelBahasa:"🌐 语言",
+search:"搜索地点名称...",
+semua:"全部",
+tujuan:"📍 目的地",
+menghitung:"⏳ 正在计算路线...",
+ruteTidak:"⚠️ 找不到路线。",
+gagal:"⚠️ 路线加载失败。",
+cobaLagi:"请重试或使用 Google Maps 按钮。",
+jarak:"📏 道路距离：",
+motorPribadi:"🏍️ 摩托车：",
+mobilPribadi:"🚗 私家车：",
+estimasiGrab:"🟢 GRAB 预估",
+grabMotor:"🏍️ Grab 摩托车（GrabBike）",
+grabMobil:"🚗 Grab 汽车（GrabCar）",
+harga:"💰 预计价格：",
+waktu:"⏱️ 时间：",
+jarakLabel:"📏 距离：",
+akses:"🚦 道路通行情况",
+kondisi:"🛣️ 道路状况：",
+motor:"🏍️ 摩托车：",
+mobil:"🚗 汽车：",
+catatan:"⚠️ 注意：",
+biaya:"💰 旅游费用：",
+jam:"🕐 开放时间：",
+grabCatatan:"*Grab价格仅根据距离估算。实际价格可能因时间、地点、需求、促销、动态价格和其他费用而有所不同。",
+aksesCatatan:"*道路状况可能因天气、道路维修、交通拥堵或现场情况而变化。",
+ruteCatatan:"*距离按照 OSRM 道路路线计算。旅行时间可能因交通、天气和道路状况而变化。"
+},
+
+de: {
+judul:"🗺️ Touristen-Stadtkarte",
+labelBahasa:"🌐 Sprache",
+search:"Ortsnamen suchen...",
+semua:"Alle",
+tujuan:"📍 Ziel",
+menghitung:"⏳ Route wird berechnet...",
+ruteTidak:"⚠️ Route nicht gefunden.",
+gagal:"⚠️ Route konnte nicht geladen werden.",
+cobaLagi:"Bitte versuchen Sie es erneut oder verwenden Sie die Google-Maps-Schaltfläche.",
+jarak:"📏 Straßenentfernung:",
+motorPribadi:"🏍️ Eigenes Motorrad:",
+mobilPribadi:"🚗 Eigenes Auto:",
+estimasiGrab:"🟢 GRAB-SCHÄTZUNG",
+grabMotor:"🏍️ Grab Motorrad (GrabBike)",
+grabMobil:"🚗 Grab Auto (GrabCar)",
+harga:"💰 Geschätzter Preis:",
+waktu:"⏱️ Zeit:",
+jarakLabel:"📏 Entfernung:",
+akses:"🚦 Straßen-Zugänglichkeit",
+kondisi:"🛣️ Straßenzustand:",
+motor:"🏍️ Motorrad:",
+mobil:"🚗 Auto:",
+catatan:"⚠️ Hinweis:",
+biaya:"💰 Reisekosten:",
+jam:"🕐 Öffnungszeiten:",
+grabCatatan:"*Die Grab-Preise sind nur Schätzungen anhand der Entfernung. Der tatsächliche Preis kann je nach Zeit, Ort, Nachfrage, Aktionen, dynamischer Preisgestaltung und zusätzlichen Gebühren abweichen.",
+aksesCatatan:"*Der Straßenzustand kann sich aufgrund von Wetter, Straßenarbeiten, Verkehr oder örtlichen Bedingungen ändern.",
+ruteCatatan:"*Die Entfernung folgt der OSRM-Straßenroute. Die Fahrzeit kann sich aufgrund von Verkehr, Wetter und Straßenbedingungen ändern."
+},
+
+jv: {
+judul:"🗺️ Peta Kutha Wisata",
+labelBahasa:"🌐 Basa",
+search:"Goleki jeneng panggonan...",
+semua:"Kabeh",
+tujuan:"📍 Tujuan",
+menghitung:"⏳ Lagi ngetung rute...",
+ruteTidak:"⚠️ Rute ora ditemokake.",
+gagal:"⚠️ Ora bisa ngemot rute.",
+cobaLagi:"Mangga coba maneh utawa gunakake tombol Google Maps.",
+jarak:"📏 Jarak dalan:",
+motorPribadi:"🏍️ Motor pribadi:",
+mobilPribadi:"🚗 Mobil pribadi:",
+estimasiGrab:"🟢 PERKIRAAN GRAB",
+grabMotor:"🏍️ Grab Motor (GrabBike)",
+grabMobil:"🚗 Grab Mobil (GrabCar)",
+harga:"💰 Perkiraan rega:",
+waktu:"⏱️ Wektu:",
+jarakLabel:"📏 Jarak:",
+akses:"🚦 Aksesibilitas Dalan",
+kondisi:"🛣️ Kondisi dalan:",
+motor:"🏍️ Motor:",
+mobil:"🚗 Mobil:",
+catatan:"⚠️ Cathetan:",
+biaya:"💰 Biaya wisata:",
+jam:"🕐 Jam Bukak:",
+grabCatatan:"*Rega Grab mung perkiraan adhedhasar jarak. Rega nyata ing aplikasi Grab bisa beda amarga wektu, lokasi, panjaluk, promo, tarif dinamis, lan biaya tambahan.",
+aksesCatatan:"*Kondisi dalan bisa owah amarga cuaca, ndandani dalan, rame lalu lintas, utawa kondisi ing lapangan.",
+ruteCatatan:"*Jarak adhedhasar rute dalan saka OSRM. Wektu lelungan bisa owah amarga lalu lintas, cuaca, lan kondisi dalan."
+}
+
+};
+
+
+/* ========== BAHASA AKTIF ========== */
+
+let bahasaAktif = "id";
+
+function T(key) {
+  return bahasa[bahasaAktif][key] || key;
+}
+
+
+/* ========== RATING ========== */
+
+function buatRating(rating) {
+  const penuh = Math.floor(rating);
+  const kosong = 5 - penuh;
+  let bintang = "";
+  for (let i = 0; i < penuh; i++) bintang += "★";
+  for (let i = 0; i < kosong; i++) bintang += "☆";
+
+  return `
+    <div class="rating">
+      <span class="bintang">${bintang}</span>
+      <b>${rating}/5</b>
+    </div>
+  `;
+}
+
+
+/* ========== AKSESIBILITAS ========== */
+
+function buatAkses(l) {
+  return `
+    <div class="akses-box">
+      <b>${T("akses")}</b>
+      <div class="akses-item">🛣️ <b>${T("kondisi")}</b> ${l.akses.jalan}</div>
+      <div class="akses-item">🏍️ <b>${T("motor")}</b> ${l.akses.motor}</div>
+      <div class="akses-item">🚗 <b>${T("mobil")}</b> ${l.akses.mobil}</div>
+      <div class="akses-item">⚠️ <b>${T("catatan")}</b> ${l.akses.catatan}</div>
+      <div class="akses-catatan">${T("aksesCatatan")}</div>
+    </div>
+  `;
+}
+
+
+/* ========== TOMBOL LINK ========== */
+
+function buatTombolLink(l) {
+  const googleMaps =
+    'https://www.google.com/maps/dir/?api=1&destination=' + l.lat + ',' + l.lng;
+
+  const tiktok =
+    l.tiktok || 'https://www.tiktok.com/search?q=' + encodeURIComponent(l.nama);
+
+  const youtube =
+    l.youtube || 'https://www.youtube.com/results?search_query=' + encodeURIComponent(l.nama);
+
+  return `
+    <div class="link-container">
+      <a href="${googleMaps}" target="_blank" class="link-btn google-btn" onclick="event.stopPropagation();">📍 Google Maps</a>
+      <a href="${tiktok}" target="_blank" class="link-btn tiktok-btn" onclick="event.stopPropagation();">🎵 TikTok</a>
+      <a href="${youtube}" target="_blank" class="link-btn youtube-btn" onclick="event.stopPropagation();">▶️ YouTube</a>
+    </div>
+  `;
+}
+
+
+/* ========== FORMAT RUPIAH ========== */
+
+function formatRupiah(angka) {
+  return new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    maximumFractionDigits: 0
+  }).format(angka);
+}
+
+
+/* ========== ESTIMASI GRAB ========== */
+
+function estimasiGrabMotor(jarakKm) {
+  const harga = 9000 + (jarakKm * 3000);
+  return Math.ceil(harga / 1000) * 1000;
+}
+
+function estimasiGrabMobil(jarakKm) {
+  const harga = 15000 + (jarakKm * 5000);
+  return Math.ceil(harga / 1000) * 1000;
+}
+
+
+/* ========== RUTE ========== */
+
+let markers = [];
+let routeLine = null;
+
+function tampilkanRute(tujuanLat, tujuanLng, namaTempat, biaya, akses) {
+
+  if (routeLine) {
+    map.removeLayer(routeLine);
+    routeLine = null;
+  }
+
+  const infoBox = document.getElementById('infoPerjalanan');
+  infoBox.style.display = 'block';
+  infoBox.innerHTML = `<b>${T("menghitung")}</b>`;
+
+  const url =
+    'https://router.project-osrm.org/route/v1/driving/' +
+    titikAwal.lng + ',' + titikAwal.lat + ';' +
+    tujuanLng + ',' + tujuanLat +
+    '?overview=full&geometries=geojson&steps=false';
+
+  fetch(url)
+    .then(res => {
+      if (!res.ok) throw new Error('Routing error');
+      return res.json();
+    })
+    .then(data => {
+
+      if (!data.routes || data.routes.length === 0) {
+        infoBox.innerHTML = `<b>${T("ruteTidak")}</b>`;
+        return;
+      }
+
+      const rute = data.routes[0];
+      const koordinat = rute.geometry.coordinates.map(c => [c[1], c[0]]);
+
+      routeLine = L.polyline(koordinat, {
+        color: 'red',
+        weight: 5,
+        opacity: 0.75
+      }).addTo(map);
+
+      map.fitBounds(routeLine.getBounds(), { padding: [40, 40] });
+
+      const jarakKm = rute.distance / 1000;
+      const jarakTampil = jarakKm < 10 ? jarakKm.toFixed(1) : jarakKm.toFixed(0);
+
+      const durasiDasar = Math.round(rute.duration / 60);
+
+      const motorMin = Math.max(5, Math.round(durasiDasar * 0.85));
+      const motorMax = Math.max(motorMin + 5, Math.round(durasiDasar * 1.20));
+      const mobilMin = Math.max(5, Math.round(durasiDasar * 0.90));
+      const mobilMax = Math.max(mobilMin + 5, Math.round(durasiDasar * 1.25));
+
+      const grabMotor = estimasiGrabMotor(jarakKm);
+      const grabMobil = estimasiGrabMobil(jarakKm);
+
+      infoBox.innerHTML = `
+
+        <b>${T("tujuan")}: ${namaTempat}</b>
+
+        <div class="baris">${T("jarak")} ${jarakTampil} km</div>
+        <div class="baris">${T("motorPribadi")} ± ${motorMin}-${motorMax} menit</div>
+        <div class="baris">${T("mobilPribadi")} ± ${mobilMin}-${mobilMax} menit</div>
+
+        <div class="grab-box">
+
+          <b>${T("estimasiGrab")}</b>
+
+          <div class="baris" style="margin-top:8px;">${T("grabMotor")}</div>
+          <div class="baris">${T("harga")} sekitar ${formatRupiah(grabMotor)}</div>
+          <div class="baris">${T("jarakLabel")} ${jarakTampil} km</div>
+          <div class="baris">${T("waktu")} ± ${motorMin}-${motorMax} menit</div>
+
+          <div class="grab-mobil">
+            ${T("grabMobil")}
+            <div class="baris">${T("harga")} sekitar ${formatRupiah(grabMobil)}</div>
+            <div class="baris">${T("jarakLabel")} ${jarakTampil} km</div>
+            <div class="baris">${T("waktu")} ± ${mobilMin}-${mobilMax} menit</div>
+          </div>
+
+          <div class="grab-catatan">${T("grabCatatan")}</div>
+
+        </div>
+
+        ${buatAkses({ akses: akses })}
+
+        <div class="baris">${T("biaya")} ${biaya}</div>
+
+        <div class="baris" style="font-size:11px;color:#888;margin-top:8px;">
+          ${T("ruteCatatan")}
+        </div>
+
+      `;
+
+    })
+    .catch(err => {
+
+      console.log(err);
+
+      infoBox.innerHTML = `
+        <b>${T("gagal")}</b>
+        <div class="baris">${T("cobaLagi")}</div>
+        ${buatAkses({ akses: akses })}
+      `;
+
+    });
+
+}
+
+
+/* ========== RENDER PETA ========== */
+
+function renderPeta(data) {
+
+  markers.forEach(m => map.removeLayer(m));
+  markers = [];
+
+  const list = document.getElementById('list');
+  list.innerHTML = '';
+
+  data.forEach(l => {
+
+    const marker = L.marker([l.lat, l.lng], {
+      icon: ikonKategori[l.kategori]
+    }).addTo(map);
+
+    let media = `<div class="media-container">`;
+
+    if (l.foto) {
+      media += `<img src="${l.foto}" alt="${l.nama}">`;
+    }
+
+    if (l.video) {
+      media += `<iframe src="${l.video}" allowfullscreen></iframe>`;
+    }
+
+    media += `</div>`;
+
+    const popup = `
+
+      <b>${l.nama}</b>
+
+      <br><br>
+
+      ${l.desc}
+
+      ${buatRating(l.rating)}
+
+      <div class="jam-buka">${T("jam")} ${l.jamBuka}</div>
+
+      ${buatAkses(l)}
+
+      <br>
+
+      💰 ${l.biaya}
+
+      ${media}
+
+      ${buatTombolLink(l)}
+
+    `;
+
+    marker.bindPopup(popup);
+    markers.push(marker);
+
+    marker.on('click', function () {
+      tampilkanRute(l.lat, l.lng, l.nama, l.biaya, l.akses);
+    });
+
+    const div = document.createElement('div');
+    div.className = 'item';
+
+    div.innerHTML = `
+
+      <b>${l.nama}</b>
+
+      ${buatRating(l.rating)}
+
+      <div class="jam-buka">${T("jam")} ${l.jamBuka}</div>
+
+      <small>${l.desc}</small>
+
+      ${buatAkses(l)}
+
+      <div>💰 ${l.biaya}</div>
+
+      ${media}
+
+      ${buatTombolLink(l)}
+
+    `;
+
+    div.onclick = function () {
+      map.flyTo([l.lat, l.lng], 15);
+      marker.openPopup();
+      tampilkanRute(l.lat, l.lng, l.nama, l.biaya, l.akses);
+    };
+
+    list.appendChild(div);
+
+  });
+
+}
+
+
+/* ========== TAMPILKAN SEMUA ========== */
+
+renderPeta(lokasi);
+
+
+/* ========== SEARCH ========== */
+
+document.getElementById('search').addEventListener('input', function (e) {
+
+  const kata = e.target.value.toLowerCase();
+
+  const hasil = lokasi.filter(l => l.nama.toLowerCase().includes(kata));
+
+  renderPeta(hasil);
+
+});
+
+
+/* ========== FILTER ========== */
+
+const kategoriUnik = [];
+
+lokasi.forEach(l => {
+  if (!kategoriUnik.includes(l.kategori)) {
+    kategoriUnik.push(l.kategori);
+  }
+});
+
+const filterDiv = document.getElementById('filters');
+
+const namaKategori = {
+
+  id: {
+    WisataAlam:"Wisata Alam",
+    WisataBudaya:"Wisata Budaya",
+    WisataSejarah:"Wisata Sejarah",
+    Religi:"Religi",
+    Kuliner:"Kuliner",
+    Perbelanjaan:"Perbelanjaan",
+    Pertanian:"Pertanian",
+    Petualangan:"Petualangan",
+    WisataBuatan:"Wisata Buatan"
+  },
+
+  en: {
+    WisataAlam:"Nature",
+    WisataBudaya:"Culture",
+    WisataSejarah:"History",
+    Religi:"Religion",
+    Kuliner:"Culinary",
+    Perbelanjaan:"Shopping",
+    Pertanian:"Agriculture",
+    Petualangan:"Adventure",
+    WisataBuatan:"Man-made Tourism"
+  },
+
+  zh: {
+    WisataAlam:"自然旅游",
+    WisataBudaya:"文化旅游",
+    WisataSejarah:"历史旅游",
+    Religi:"宗教",
+    Kuliner:"美食",
+    Perbelanjaan:"购物",
+    Pertanian:"农业",
+    Petualangan:"冒险",
+    WisataBuatan:"人工旅游"
+  },
+
+  de: {
+    WisataAlam:"Natur",
+    WisataBudaya:"Kultur",
+    WisataSejarah:"Geschichte",
+    Religi:"Religion",
+    Kuliner:"Kulinarik",
+    Perbelanjaan:"Einkaufen",
+    Pertanian:"Landwirtschaft",
+    Petualangan:"Abenteuer",
+    WisataBuatan:"Freizeitpark"
+  },
+
+  jv: {
+    WisataAlam:"Wisata Alam",
+    WisataBudaya:"Wisata Budaya",
+    WisataSejarah:"Wisata Sejarah",
+    Religi:"Agama",
+    Kuliner:"Kuliner",
+    Perbelanjaan:"Blanja",
+    Pertanian:"Pertanian",
+    Petualangan:"Petualangan",
+    WisataBuatan:"Wisata Gawean"
+  }
+
+};
+
+function aktifkanTombol(btn) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function buatFilter() {
+
+  filterDiv.innerHTML = '';
+
+  const btnAll = document.createElement('button');
+  btnAll.textContent = T("semua");
+  btnAll.className = 'filter-btn active';
+
+  btnAll.onclick = function () {
+    renderPeta(lokasi);
+    aktifkanTombol(btnAll);
+  };
+
+  filterDiv.appendChild(btnAll);
+
+  kategoriUnik.forEach(kat => {
+
+    const btn = document.createElement('button');
+
+    btn.textContent = namaKategori[bahasaAktif][kat] || kat;
+    btn.className = 'filter-btn';
+
+    btn.onclick = function () {
+      renderPeta(lokasi.filter(l => l.kategori === kat));
+      aktifkanTombol(btn);
+    };
+
+    filterDiv.appendChild(btn);
+
+  });
+
+}
+
+
+/* ========== GANTI BAHASA ========== */
+
+function ubahBahasa() {
+
+  bahasaAktif = document.getElementById('language').value;
+
+  document.getElementById('judul').textContent = T("judul");
+  document.getElementById('labelBahasa').textContent = T("labelBahasa");
+  document.getElementById('search').placeholder = T("search");
+
+  buatFilter();
+
+  const kata = document.getElementById('search').value.toLowerCase();
+
+  renderPeta(lokasi.filter(l => l.nama.toLowerCase().includes(kata)));
+
+}
+
+document.getElementById('language').addEventListener('change', ubahBahasa);
+
+
+/* ========== MULAI ========== */
+
+buatFilter();
+
+</script>
+
+</body>
+</html>
